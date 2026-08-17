@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JWT Auth Lab — Stateless Session Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-dot"></div>
+    <span class="brand-name display">JWT AUTH LAB</span>
+    <span class="brand-sub">stateless session console</span>
+  </div>
+  <div class="topbar-right">
+    <div class="stateless-pill"><span class="d"></span>NO SERVER SESSION STORE</div>
+    <button class="btn-ghost" id="logoutBtn" style="display:none;">Log out</button>
+  </div>
+</div>
+
+<main>
+
+  <!-- ================= LOGIN SCREEN ================= -->
+  <section class="screen active" id="loginScreen">
+    <div class="login-grid">
+
+      <div class="panel">
+        <div class="eyebrow">Sign in</div>
+        <h2 class="display" style="margin:0 0 6px; font-size:22px;">Access the console</h2>
+        <p style="color:var(--muted); font-size:13px; margin:0 0 22px;">Credentials are checked against a mock user table — no backend required.</p>
+
+        <div class="error-msg" id="loginError">Invalid username or password.</div>
+
+        <form id="loginForm">
+          <div class="field">
+            <label for="username">Username</label>
+            <input type="text" id="username" autocomplete="username" placeholder="e.g. admin">
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
+          </div>
+          <button type="submit" class="btn-primary">Sign in &amp; issue token →</button>
+        </form>
+
+        <div class="demo-creds">
+          <div class="demo-creds-title">Demo accounts — click to fill</div>
+          <div class="cred-row" data-user="admin" data-pass="admin123">
+            <span>admin / admin123</span><span class="cred-role">administrator</span>
+          </div>
+          <div class="cred-row" data-user="alice" data-pass="wonderland">
+            <span>alice / wonderland</span><span class="cred-role">analyst</span>
+          </div>
+          <div class="cred-row" data-user="bob" data-pass="builder123">
+            <span>bob / builder123</span><span class="cred-role">viewer</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="eyebrow">How this works</div>
+        <h1 class="hero-title display">One signed string<br>replaces the session.</h1>
+        <p class="hero-desc">When you sign in, the server would normally build a JSON payload of claims, sign it with a secret key, and hand it back. Nothing about you is stored server-side afterward — the token itself <em>is</em> the session. Every part below is live: sign in to watch it get built.</p>
+
+        <div class="anatomy-wrap">
+          <div class="anatomy-label">Token anatomy — header.payload.signature</div>
+          <div class="anatomy-strip" id="heroAnatomy">
+            <div class="anatomy-seg seg-header" id="heroSegHeader">eyJhbGciOiJIUzI1NiJ9</div>
+            <div class="anatomy-seg seg-payload" id="heroSegPayload">— sign in to generate —</div>
+            <div class="anatomy-seg seg-sig" id="heroSegSig">••••••••••••</div>
+          </div>
+          <div class="anatomy-legend">
+            <div class="legend-item"><span class="legend-dot" style="background:var(--header-c);"></span>Header — algorithm + token type</div>
+            <div class="legend-item"><span class="legend-dot" style="background:var(--payload-c);"></span>Payload — claims about the user</div>
+            <div class="legend-item"><span class="legend-dot" style="background:var(--sig-c);"></span>Signature — proves it wasn't altered</div>
+          </div>
+        </div>
+
+        <div class="flow-row">
+          <span class="flow-step">1. submit credentials</span><span class="flow-arrow">→</span>
+          <span class="flow-step">2. server validates</span><span class="flow-arrow">→</span>
+          <span class="flow-step">3. token signed</span><span class="flow-arrow">→</span>
+          <span class="flow-step">4. stored client-side</span><span class="flow-arrow">→</span>
+          <span class="flow-step">5. sent with each request</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= DASHBOARD SCREEN ================= -->
+  <section class="screen" id="dashScreen">
+    <div class="session-header" style="margin-top:28px;">
+      <div>
+        <div class="eyebrow">Session active</div>
+        <div class="welcome" id="welcomeText">Welcome back</div>
+      </div>
+      <div class="role-badge" id="roleBadge">role</div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-label">Auth model</div>
+        <div class="stat-value" style="font-size:14px; color:var(--header-c);">Stateless (JWT)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Issued at</div>
+        <div class="stat-value" id="issuedAt" style="font-size:14px;">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Expires in</div>
+        <div class="stat-value" id="expiresIn">—</div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+
+      <!-- LEFT: token + claims -->
+      <div>
+        <div class="panel" style="margin-bottom:20px;">
+          <div class="section-title"><span class="num">01</span> Stored token</div>
+          <p style="color:var(--muted); font-size:12.5px; margin:0 0 6px;">Sitting in <code class="mono">localStorage</code> right now. This is what gets attached to outgoing requests.</p>
+          <div class="token-string" id="rawTokenDisplay">—</div>
+        </div>
+
+        <div class="panel">
+          <div class="section-title"><span class="num">02</span> Decoded claims</div>
+          <table class="claims-table" id="claimsTable"></table>
+        </div>
+      </div>
+
+      <!-- RIGHT: anatomy + actions -->
+      <div>
+        <div class="panel" style="margin-bottom:20px;">
+          <div class="section-title"><span class="num">03</span> Token anatomy</div>
+          <div class="anatomy-strip" id="dashAnatomy">
+            <div class="anatomy-seg seg-header" data-part="header">—</div>
+            <div class="anatomy-seg seg-payload" data-part="payload">—</div>
+            <div class="anatomy-seg seg-sig" data-part="sig">—</div>
+          </div>
+          <div class="decoded-box" id="decodedBox"></div>
+        </div>
+
+        <div class="panel" style="margin-bottom:20px;">
+          <div class="section-title"><span class="num">04</span> Integrity &amp; validity checks</div>
+          <p style="color:var(--muted); font-size:12.5px; margin:0;">These simulate what a server does on every incoming request: recompute the signature and check the expiry claim.</p>
+          <div class="action-row">
+            <button class="btn-sm ok" id="verifyBtn">Verify signature</button>
+            <button class="btn-sm" id="tamperBtn">Tamper with payload</button>
+            <button class="btn-sm danger" id="expireBtn">Simulate expired token</button>
+          </div>
+          <textarea class="tamper-editor" id="tamperEditor" spellcheck="false"></textarea>
+          <div class="action-row" id="tamperApplyRow" style="display:none;">
+            <button class="btn-sm danger" id="applyTamperBtn">Re-attach edited payload &amp; verify</button>
+          </div>
+          <div class="verify-result" id="verifyResult"></div>
+          <div class="note" id="tamperNote" style="display:none;">Notice the signature still shows the <em>original</em> claims' fingerprint — editing the payload without the secret key invalidates it. This is the core guarantee JWTs give you.</div>
+        </div>
+
+        <div class="panel">
+          <div class="section-title"><span class="num">05</span> Simulated protected request</div>
+          <p style="color:var(--muted); font-size:12.5px; margin:0;">Click to attach the token as a bearer credential and simulate a server checking it.</p>
+          <div class="action-row">
+            <button class="btn-sm" id="requestBtn">GET /api/profile</button>
+          </div>
+          <div class="request-sim" id="requestSim" style="display:none;"></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer>JWT AUTH LAB · educational demo · tokens are signed client-side with Web Crypto for illustration only — real systems sign on the server and never expose the secret</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
