@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispatch Backend — REST API Design &amp; Observability</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EEF1EF;
+  --paper-deep:#E2E7E4;
+  --ink:#192620;
+  --ink-soft:#4C5A53;
+  --navy:#132538;
+  --navy-2:#1E3E59;
+  --line:#B7C4BE;
+  --amber:#C4792A;
+  --brick:#A5432D;
+  --teal:#3C7A6C;
+  --mono-bg:#0D1B26;
+  --mono-panel:#122536;
+  --mono-text:#D9E4DE;
+  --mono-dim:#7E9691;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'Spectral',Georgia,serif;
+  font-size:17px;
+  line-height:1.65;
+}
+a{color:inherit;}
+h1,h2,h3{font-family:'Spectral',Georgia,serif;font-weight:600;margin:0 0 .4em;color:var(--ink);}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+.container{max-width:980px;margin:0 auto;padding:0 28px;}
+.site-header{
+  background:var(--navy);
+  color:#EAF0EC;
+  border-bottom:3px solid var(--amber);
+}
+.site-header .bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 28px;max-width:980px;margin:0 auto;
+}
+.brand{display:flex;align-items:baseline;gap:10px;}
+.brand .mark{
+  font-family:'IBM Plex Mono';font-size:13px;letter-spacing:.04em;
+  background:var(--amber);color:#1A1206;padding:2px 7px;border-radius:3px;
+}
+.brand h1{font-size:19px;color:#fff;margin:0;}
+.site-header nav{display:flex;gap:22px;font-family:'IBM Plex Mono';font-size:13px;}
+.site-header nav a{text-decoration:none;color:#AFC2C9;border-bottom:1px solid transparent;padding-bottom:2px;}
+.site-header nav a:hover,.site-header nav a:focus-visible{color:#fff;border-color:var(--amber);}
+
+.hero{padding:56px 0 40px;border-bottom:1px solid var(--line);}
+.hero .kicker{font-family:'IBM Plex Mono';font-size:13px;color:var(--teal);margin-bottom:10px;}
+.hero h2{font-size:34px;line-height:1.25;max-width:22ch;}
+.hero p.lede{max-width:62ch;color:var(--ink-soft);font-size:18px;}
+
+.submission-card{
+  margin-top:30px;background:#fff;border:1px solid var(--line);
+  border-radius:2px;padding:20px 22px;display:grid;
+  grid-template-columns:repeat(4,1fr);gap:16px;
+}
+.submission-card label{
+  display:block;font-family:'IBM Plex Mono';font-size:11px;
+  color:var(--ink-soft);margin-bottom:6px;
+}
+.submission-card input{
+  width:100%;border:none;border-bottom:1px solid var(--line);
+  background:transparent;font-family:'Spectral';font-size:16px;
+  padding:4px 0;color:var(--ink);
+}
+.submission-card input:focus{outline:none;border-bottom-color:var(--amber);}
+@media (max-width:720px){.submission-card{grid-template-columns:1fr 1fr;}}
+
+section.record{padding:52px 0;border-bottom:1px solid var(--line);}
+section.record .part-toggle{
+  display:flex;gap:2px;margin-bottom:34px;background:var(--paper-deep);
+  padding:4px;border-radius:3px;width:fit-content;
+}
+.part-toggle button{
+  font-family:'IBM Plex Mono';font-size:13px;padding:9px 16px;border:none;
+  background:transparent;color:var(--ink-soft);cursor:pointer;border-radius:2px;
+}
+.part-toggle button.active{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08);}
+
+.part-panel{display:none;}
+.part-panel.active{display:block;}
+
+.record-grid{display:grid;grid-template-columns:1.3fr .7fr;gap:44px;}
+@media (max-width:800px){.record-grid{grid-template-columns:1fr;}}
+
+.field-block{margin-bottom:26px;}
+.field-block h3{font-size:20px;}
+.field-block ul{margin:.4em 0 0;padding-left:1.1em;}
+.field-block li{margin-bottom:.35em;}
+
+.side-fact{
+  background:#fff;border:1px solid var(--line);padding:16px 18px;
+  margin-bottom:16px;border-radius:2px;
+}
+.side-fact h4{
+  font-family:'IBM Plex Mono';font-size:12px;color:var(--teal);
+  margin:0 0 8px;text-transform:none;
+}
+.side-fact ul{margin:0;padding-left:1.1em;font-size:15px;}
+.side-fact li{margin-bottom:.3em;}
+
+section.reference{padding:52px 0;border-bottom:1px solid var(--line);background:var(--paper-deep);}
+.code-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;}
+.code-tabs button{
+  font-family:'IBM Plex Mono';font-size:12.5px;padding:7px 12px;
+  border:1px solid var(--line);background:#fff;color:var(--ink-soft);
+  border-radius:2px;cursor:pointer;
+}
+.code-tabs button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.code-block{display:none;}
+.code-block.active{display:block;}
+pre.code{
+  background:var(--mono-bg);color:var(--mono-text);font-family:'IBM Plex Mono';
+  font-size:13px;line-height:1.6;padding:22px 24px;border-radius:3px;
+  overflow-x:auto;margin:0;
+}
+pre.code .kw{color:#E3A458;}
+pre.code .cls{color:#7FB3D5;}
+pre.code .str{color:#9CC49B;}
+pre.code .ann{color:#C9A0DC;}
+pre.code .cmt{color:var(--mono-dim);}
+
+section.console{padding:52px 0 70px;}
+.console-shell{
+  background:var(--mono-bg);border-radius:6px;overflow:hidden;
+  border:1px solid #04101A;
+}
+.console-top{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 18px;background:var(--mono-panel);border-bottom:1px solid #04101A;
+}
+.console-top .dots span{
+  display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;
+}
+.console-top .dots span:nth-child(1){background:#A5432D;}
+.console-top .dots span:nth-child(2){background:#C4792A;}
+.console-top .dots span:nth-child(3){background:#3C7A6C;}
+.console-top .cors{font-family:'IBM Plex Mono';font-size:11.5px;color:var(--mono-dim);}
+.console-top .cors b{color:#9CC49B;}
+
+.console-body{display:grid;grid-template-columns:220px 1fr;min-height:480px;}
+@media (max-width:820px){.console-body{grid-template-columns:1fr;}}
+
+.endpoints{border-right:1px solid #04101A;padding:14px 0;}
+.endpoints .ep{
+  display:block;width:100%;text-align:left;background:transparent;border:none;
+  color:var(--mono-text);font-family:'IBM Plex Mono';font-size:12.5px;
+  padding:10px 16px;cursor:pointer;border-left:2px solid transparent;
+}
+.endpoints .ep:hover{background:rgba(255,255,255,.04);}
+.endpoints .ep.active{background:rgba(196,121,42,.12);border-left-color:var(--amber);color:#fff;}
+.endpoints .ep .m{display:inline-block;width:44px;font-weight:600;}
+.m-get{color:#7FB3D5;}
+.m-post{color:#9CC49B;}
+.m-put{color:#E3A458;}
+.m-delete{color:#D98A78;}
+
+.panel{padding:18px 20px;}
+.req-line{display:flex;gap:10px;align-items:center;margin-bottom:12px;font-family:'IBM Plex Mono';font-size:13px;color:var(--mono-text);}
+.req-line .badge{padding:2px 8px;border-radius:3px;font-weight:600;font-size:11.5px;}
+textarea.body-editor{
+  width:100%;min-height:110px;background:#0A1620;color:var(--mono-text);
+  border:1px solid #223444;border-radius:3px;font-family:'IBM Plex Mono';
+  font-size:12.5px;padding:12px;resize:vertical;
+}
+.run-row{display:flex;justify-content:space-between;align-items:center;margin:12px 0 18px;}
+button.run{
+  background:var(--amber);color:#1A1206;border:none;font-family:'IBM Plex Mono';
+  font-weight:600;font-size:13px;padding:9px 18px;border-radius:3px;cursor:pointer;
+}
+button.run:hover{background:#D6893A;}
+button.run:focus-visible,.ep:focus-visible,.part-toggle button:focus-visible,.code-tabs button:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+button.crash{background:transparent;border:1px solid var(--brick);color:#E38C77;font-family:'IBM Plex Mono';font-size:12px;padding:8px 14px;border-radius:3px;cursor:pointer;}
+
+.resp-status{font-family:'IBM Plex Mono';font-size:13px;margin-bottom:8px;}
+.resp-status .code-2xx{color:#9CC49B;}
+.resp-status .code-4xx{color:#E3A458;}
+.resp-status .code-5xx{color:#D98A78;}
+pre.resp-body{
+  background:#0A1620;color:var(--mono-text);font-family:'IBM Plex Mono';
+  font-size:12.5px;padding:14px;border-radius:3px;max-height:220px;overflow:auto;margin:0 0 18px;
+}
+
+.log-console{
+  border-top:1px solid #04101A;background:#081420;padding:12px 20px 16px;
+}
+.log-console h4{font-family:'IBM Plex Mono';font-size:11.5px;color:var(--mono-dim);margin:0 0 8px;font-weight:500;}
+.log-lines{max-height:150px;overflow-y:auto;font-family:'IBM Plex Mono';font-size:12px;line-height:1.7;}
+.log-lines .l-info{color:#9FB6C9;}
+.log-lines .l-error{color:#D98A78;}
+
+.data-table{width:100%;margin-top:6px;font-family:'IBM Plex Mono';font-size:12.5px;color:var(--mono-text);border-collapse:collapse;}
+.data-table th{text-align:left;color:var(--mono-dim);font-weight:500;padding:6px 8px;border-bottom:1px solid #223444;}
+.data-table td{padding:6px 8px;border-bottom:1px solid #17232E;vertical-align:top;}
+.data-table td.title{color:#fff;}
+.status-pill{font-size:11px;padding:1px 7px;border-radius:8px;background:#1B2E24;color:#9CC49B;}
+.status-pill.scheduled{background:#2A2317;color:#E3A458;}
+
+footer{padding:34px 0 60px;text-align:center;font-family:'IBM Plex Mono';font-size:12px;color:var(--ink-soft);}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="bar">
+    <div class="brand"><span class="mark">DISPATCH</span><h1>Backend Lab Record</h1></div>
+    <nav>
+      <a href="#overview">Overview</a>
+      <a href="#record">Conduct</a>
+      <a href="#reference">Reference Code</a>
+      <a href="#console">Live Console</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" id="overview">
+  <div class="container">
+    <div class="kicker mono">CO1–BT1 · CO3–BT3</div>
+    <h2>RESTful API Design and Global Exception Handling in Spring Boot</h2>
+    <p class="lede">Two linked experiments treated as one build: a layered Spring Boot service for the Dispatch post-composer backend, then the exception handling, correlation IDs, and logging that make it observable in production.</p>
+
+    <div class="submission-card">
+      <div><label class="mono">Name</label><input type="text" value="Himank"></div>
+      <div><label class="mono">University Roll No.</label><input type="text" placeholder=""></div>
+      <div><label class="mono">Section / Group</label><input type="text" placeholder=""></div>
+      <div><label class="mono">Date of Conduct</label><input type="date"></div>
+    </div>
+  </div>
+</section>
+
+<section class="record" id="record">
+  <div class="container">
+    <div class="part-toggle mono">
+      <button class="active" data-part="a">Part A — REST API Design</button>
+      <button data-part="b">Part B — Exception Handling &amp; Logging</button>
+    </div>
+
+    <div class="part-panel active" id="part-a">
+      <div class="record-grid">
+        <div>
+          <div class="field-block">
+            <h3>Aim</h3>
+            <p>To design and implement RESTful APIs using Spring Boot with proper validation, standardized responses, and scalable architecture.</p>
+          </div>
+          <div class="field-block">
+            <h3>Objective</h3>
+            <ul>
+              <li>Understand REST API design principles</li>
+              <li>Implement CRUD APIs using Spring Boot</li>
+              <li>Enforce consistent request-response structures</li>
+              <li>Apply validation using Bean Validation</li>
+              <li>Enable secure cross-origin communication</li>
+            </ul>
+          </div>
+          <div class="field-block">
+            <h3>Theory</h3>
+            <p>REST treats data as resources accessed through standard HTTP methods — GET, POST, PUT, DELETE. Spring Boot organises this into a layered architecture: the <b>Controller</b> layer handles HTTP requests, the <b>Service</b> layer holds business logic, and the <b>Repository</b> layer talks to the database.</p>
+            <p>A well-designed API keeps communication stateless, follows a consistent URI structure, and returns a standardized response shape. Bean Validation annotations — <span class="mono">@NotNull</span>, <span class="mono">@NotBlank</span>, <span class="mono">@Size</span> — check incoming data before it reaches the service layer, and CORS configuration lets the Dispatch frontend, running on a different origin, call the API safely.</p>
+          </div>
+          <div class="field-block">
+            <h3>Implementation Overview</h3>
+            <ul>
+              <li>Project structure with Controller / Service / Repository layers</li>
+              <li>CRUD endpoints for posts, plus a scheduling endpoint</li>
+              <li>Validation annotations on the request DTO</li>
+              <li>A single <span class="mono">ApiResponse&lt;T&gt;</span> envelope for every response</li>
+              <li>CORS configuration scoped to the Dispatch client origin</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <div class="side-fact">
+            <h4>Pre-requisites</h4>
+            <ul><li>Java &amp; OOP concepts</li><li>HTTP methods</li><li>REST architecture basics</li><li>Frontend–backend interaction</li></ul>
+          </div>
+          <div class="side-fact">
+            <h4>Software Requirements</h4>
+            <ul><li>JDK 17+</li><li>Spring Boot</li><li>IntelliJ / Eclipse / VS Code</li><li>Postman</li></ul>
+          </div>
+          <div class="side-fact">
+            <h4>Conceptual Focus</h4>
+            <ul><li>REST design principles</li><li>Layered architecture</li><li>Bean Validation</li><li>Response standardization</li><li>CORS</li></ul>
+          </div>
+          <div class="side-fact">
+            <h4>Expected Outcome</h4>
+            <ul><li>Working CRUD APIs</li><li>Validated request handling</li><li>Consistent response structure</li><li>Secure frontend–backend link</li></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="part-panel" id="part-b">
+      <div class="record-grid">
+        <div>
+          <div class="field-block">
+            <h3>Aim</h3>
+            <p>To implement global exception handling and structured logging for building robust and observable backend systems.</p>
+          </div>
+          <div class="field-block">
+            <h3>Objective</h3>
+            <ul>
+              <li>Handle exceptions centrally using <span class="mono">@ControllerAdvice</span></li>
+              <li>Implement logging for request tracking</li>
+              <li>Use correlation IDs for tracing requests</li>
+              <li>Improve observability and debugging</li>
+            </ul>
+          </div>
+          <div class="field-block">
+            <h3>Theory</h3>
+            <p>Handling exceptions inside every controller duplicates code and produces inconsistent error shapes. <span class="mono">@ControllerAdvice</span> centralises that into one place, so every failure — validation, missing resource, or an unexpected fault — comes back through the same error envelope.</p>
+            <p>Filters and interceptors sit in front of that logic as middleware, useful for logging, authentication, and request modification. A correlation ID, attached per request through MDC (Mapped Diagnostic Context), threads through every log line for that request, so a single failure can be traced end to end even across a distributed system.</p>
+          </div>
+          <div class="field-block">
+            <h3>Implementation Overview</h3>
+            <ul>
+              <li><span class="mono">@ControllerAdvice</span> for centralised exception handling</li>
+              <li>Custom exception classes per failure type</li>
+              <li>A logging filter that times each request</li>
+              <li>Correlation ID generation and propagation via MDC</li>
+              <li>One error response shape across the API</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <div class="side-fact">
+            <h4>Pre-requisites</h4>
+            <ul><li>REST APIs</li><li>Java exception handling</li><li>Spring Boot basics</li></ul>
+          </div>
+          <div class="side-fact">
+            <h4>Software Requirements</h4>
+            <ul><li>JDK 17+</li><li>Spring Boot</li><li>IntelliJ / Eclipse / VS Code</li><li>Postman</li><li>SLF4J / Logback</li></ul>
+          </div>
+          <div class="side-fact">
+            <h4>Conceptual Focus</h4>
+            <ul><li>Global exception handling</li><li>Filters &amp; interceptors</li><li>Logging &amp; monitoring</li><li>Correlation IDs</li></ul>
+          </div>
+          <div class="side-fact">
+            <h4>Expected Outcome</h4>
+            <ul><li>Centralised, consistent error handling</li><li>Structured request logs</li><li>Faster debugging</li><li>Traceable request lifecycle</li></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="reference" id="reference">
+  <div class="container">
+    <h3 style="font-size:24px;margin-bottom:6px;">Reference Implementation</h3>
+    <p style="color:var(--ink-soft);margin-top:0;max-width:60ch;">The core classes behind the console below — trimmed to the parts that matter for the conduct.</p>
+    <div class="code-tabs mono">
+      <button class="active" data-code="controller">PostController.java</button>
+      <button data-code="service">PostService.java</button>
+      <button data-code="dto">ApiResponse.java</button>
+      <button data-code="advice">GlobalExceptionHandler.java</button>
+      <button data-code="filter">CorrelationIdFilter.java</button>
+      <button data-code="cors">CorsConfig.java</button>
+    </div>
+
+    <div class="code-block active" id="code-controller"><pre class="code"><span class="ann">@RestController</span>
+<span class="ann">@RequestMapping</span>(<span class="str">"/api/posts"</span>)
+<span class="kw">public class</span> <span class="cls">PostController</span> {
+
+    <span class="kw">private final</span> PostService service;
+
+    <span class="kw">public</span> PostController(PostService service) { <span class="kw">this</span>.service = service; }
+
+    <span class="ann">@GetMapping</span>
+    <span class="kw">public</span> ApiResponse&lt;List&lt;PostDto&gt;&gt; list() {
+        <span class="kw">return</span> ApiResponse.ok(service.findAll());
+    }
+
+    <span class="ann">@PostMapping</span>
+    <span class="ann">@ResponseStatus</span>(HttpStatus.CREATED)
+    <span class="kw">public</span> ApiResponse&lt;PostDto&gt; create(<span class="ann">@Valid</span> <span class="ann">@RequestBody</span> CreatePostRequest req) {
+        <span class="kw">return</span> ApiResponse.ok(service.create(req));
+    }
+
+    <span class="ann">@PutMapping</span>(<span class="str">"/{id}"</span>)
+    <span class="kw">public</span> ApiResponse&lt;PostDto&gt; update(<span class="ann">@PathVariable</span> UUID id, <span class="ann">@Valid</span> <span class="ann">@RequestBody</span> UpdatePostRequest req) {
+        <span class="kw">return</span> ApiResponse.ok(service.update(id, req));
+    }
+
+    <span class="ann">@DeleteMapping</span>(<span class="str">"/{id}"</span>)
+    <span class="ann">@ResponseStatus</span>(HttpStatus.NO_CONTENT)
+    <span class="kw">public void</span> delete(<span class="ann">@PathVariable</span> UUID id) {
+        service.delete(id);
+    }
+
+    <span class="ann">@PostMapping</span>(<span class="str">"/{id}/schedule"</span>)
+    <span class="kw">public</span> ApiResponse&lt;PostDto&gt; schedule(<span class="ann">@PathVariable</span> UUID id, <span class="ann">@Valid</span> <span class="ann">@RequestBody</span> ScheduleRequest req) {
+        <span class="kw">return</span> ApiResponse.ok(service.schedule(id, req.scheduledAt()));
+    }
+}</pre></div>
+
+    <div class="code-block" id="code-service"><pre class="code"><span class="ann">@Service</span>
+<span class="kw">public class</span> <span class="cls">PostService</span> {
+
+    <span class="kw">private final</span> PostRepository repository;
+
+    <span class="kw">public</span> PostService(PostRepository repository) { <span class="kw">this</span>.repository = repository; }
+
+    <span class="kw">public</span> PostDto create(CreatePostRequest req) {
+        Post post = <span class="kw">new</span> Post(req.title(), req.content(), req.platform());
+        <span class="kw">return</span> PostDto.from(repository.save(post));
+    }
+
+    <span class="kw">public</span> PostDto update(UUID id, UpdatePostRequest req) {
+        Post post = repository.findById(id)
+            .orElseThrow(() -&gt; <span class="kw">new</span> PostNotFoundException(id));
+        post.applyUpdate(req);
+        <span class="kw">return</span> PostDto.from(repository.save(post));
+    }
+
+    <span class="kw">public void</span> delete(UUID id) {
+        <span class="kw">if</span> (!repository.existsById(id)) <span class="kw">throw new</span> PostNotFoundException(id);
+        repository.deleteById(id);
+    }
+
+    <span class="kw">public</span> PostDto schedule(UUID id, Instant scheduledAt) {
+        Post post = repository.findById(id)
+            .orElseThrow(() -&gt; <span class="kw">new</span> PostNotFoundException(id));
+        post.schedule(scheduledAt);
+        <span class="kw">return</span> PostDto.from(repository.save(post));
+    }
+}</pre></div>
+
+    <div class="code-block" id="code-dto"><pre class="code"><span class="kw">public record</span> <span class="cls">ApiResponse</span>&lt;T&gt;(
+    <span class="kw">boolean</span> success,
+    T data,
+    ApiError error,
+    Instant timestamp,
+    String correlationId
+) {
+    <span class="kw">public static</span> &lt;T&gt; ApiResponse&lt;T&gt; ok(T data) {
+        <span class="kw">return new</span> ApiResponse&lt;&gt;(<span class="kw">true</span>, data, <span class="kw">null</span>, Instant.now(), MDC.get(<span class="str">"correlationId"</span>));
+    }
+
+    <span class="kw">public static</span> ApiResponse&lt;Void&gt; error(String code, String message) {
+        <span class="kw">return new</span> ApiResponse&lt;&gt;(<span class="kw">false</span>, <span class="kw">null</span>, <span class="kw">new</span> ApiError(code, message),
+            Instant.now(), MDC.get(<span class="str">"correlationId"</span>));
+    }
+}</pre></div>
+
+    <div class="code-block" id="code-advice"><pre class="code"><span class="ann">@RestControllerAdvice</span>
+<span class="kw">public class</span> <span class="cls">GlobalExceptionHandler</span> {
+
+    <span class="kw">private static final</span> Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.<span class="kw">class</span>);
+
+    <span class="ann">@ExceptionHandler</span>(MethodArgumentNotValidException.<span class="kw">class</span>)
+    <span class="ann">@ResponseStatus</span>(HttpStatus.BAD_REQUEST)
+    <span class="kw">public</span> ApiResponse&lt;Void&gt; onValidation(MethodArgumentNotValidException ex) {
+        log.warn(<span class="str">"validation failed: {}"</span>, ex.getMessage());
+        <span class="kw">return</span> ApiResponse.error(<span class="str">"VALIDATION_ERROR"</span>, ex.getMessage());
+    }
+
+    <span class="ann">@ExceptionHandler</span>(PostNotFoundException.<span class="kw">class</span>)
+    <span class="ann">@ResponseStatus</span>(HttpStatus.NOT_FOUND)
+    <span class="kw">public</span> ApiResponse&lt;Void&gt; onNotFound(PostNotFoundException ex) {
+        log.warn(<span class="str">"post not found: {}"</span>, ex.getMessage());
+        <span class="kw">return</span> ApiResponse.error(<span class="str">"POST_NOT_FOUND"</span>, ex.getMessage());
+    }
+
+    <span class="ann">@ExceptionHandler</span>(Exception.<span class="kw">class</span>)
+    <span class="ann">@ResponseStatus</span>(HttpStatus.INTERNAL_SERVER_ERROR)
+    <span class="kw">public</span> ApiResponse&lt;Void&gt; onUnexpected(Exception ex) {
+        log.error(<span class="str">"unhandled exception"</span>, ex);
+        <span class="kw">return</span> ApiResponse.error(<span class="str">"INTERNAL_ERROR"</span>, <span class="str">"Something went wrong. Try again shortly."</span>);
+    }
+}</pre></div>
+
+    <div class="code-block" id="code-filter"><pre class="code"><span class="ann">@Component</span>
+<span class="kw">public class</span> <span class="cls">CorrelationIdFilter extends</span> OncePerRequestFilter {
+
+    <span class="kw">private static final</span> Logger log = LoggerFactory.getLogger(CorrelationIdFilter.<span class="kw">class</span>);
+
+    <span class="ann">@Override</span>
+    <span class="kw">protected void</span> doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
+            <span class="kw">throws</span> ServletException, IOException {
+        String cid = Optional.ofNullable(req.getHeader(<span class="str">"X-Correlation-Id"</span>))
+            .orElse(UUID.randomUUID().toString().substring(<span class="kw">0</span>, <span class="kw">8</span>));
+        MDC.put(<span class="str">"correlationId"</span>, cid);
+        <span class="kw">long</span> start = System.currentTimeMillis();
+        <span class="kw">try</span> {
+            chain.doFilter(req, res);
+        } <span class="kw">finally</span> {
+            log.info(<span class="str">"{} {} - {} ({}ms)"</span>, req.getMethod(), req.getRequestURI(),
+                res.getStatus(), System.currentTimeMillis() - start);
+            MDC.clear();
+        }
+    }
+}</pre></div>
+
+    <div class="code-block" id="code-cors"><pre class="code"><span class="ann">@Configuration</span>
+<span class="kw">public class</span> <span class="cls">CorsConfig implements</span> WebMvcConfigurer {
+
+    <span class="ann">@Override</span>
+    <span class="kw">public void</span> addCorsMappings(CorsRegistry registry) {
+        registry.addMapping(<span class="str">"/api/**"</span>)
+            .allowedOrigins(<span class="str">"http://localhost:5173"</span>)
+            .allowedMethods(<span class="str">"GET"</span>, <span class="str">"POST"</span>, <span class="str">"PUT"</span>, <span class="str">"DELETE"</span>)
+            .allowedHeaders(<span class="str">"*"</span>)
+            .allowCredentials(<span class="kw">true</span>);
+    }
+}</pre></div>
+  </div>
+</section>
+
+<section class="console" id="console">
+  <div class="container">
+    <h3 style="font-size:24px;margin-bottom:6px;">Live Console</h3>
+    <p style="color:var(--ink-soft);margin-top:0;max-width:62ch;margin-bottom:24px;">A browser-side stand-in for the running API — same layering, validation, response envelope, and correlation-tagged logging described above, wired to the endpoints on the left.</p>
+
+    <div class="console-shell">
+      <div class="console-top">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <div class="cors">CORS: allowed origin <b>http://localhost:5173</b> (Dispatch client)</div>
+      </div>
+      <div class="console-body">
+        <div class="endpoints mono" id="endpoints"></div>
+        <div class="panel">
+          <div class="req-line">
+            <span class="badge" id="reqMethod"></span>
+            <span id="reqPath"></span>
+          </div>
+          <textarea class="body-editor mono" id="bodyEditor" spellcheck="false"></textarea>
+          <div class="run-row">
+            <button class="run mono" id="runBtn">Send request</button>
+            <button class="crash mono" id="crashBtn">Simulate server fault</button>
+          </div>
+          <div class="resp-status mono" id="respStatus">—</div>
+          <pre class="resp-body" id="respBody">Run a request to see the response envelope.</pre>
+          <table class="data-table" id="dataTable"></table>
+        </div>
+      </div>
+      <div class="log-console">
+        <h4>request log — MDC correlation id per line</h4>
+        <div class="log-lines" id="logLines"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>Dispatch — Backend Lab Record · CUCHD</footer>
+
+<script>
+var state = { posts: [], logs: [] };
+
+function uid(n){
+  var s = '';
+  var chars = 'abcdef0123456789';
+  for (var i = 0; i < n; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+function nowIso(){ return new Date().toISOString(); }
+
+function seed(){
+  state.posts = [
+    { id: uid(8), title: 'Launch week teaser', content: 'Three days out. Bringing the calendar view live.', platform: 'Twitter', status: 'DRAFT', scheduledAt: null },
+    { id: uid(8), title: 'Behind the composer', content: 'How normalized state keeps six platforms in sync.', platform: 'LinkedIn', status: 'SCHEDULED', scheduledAt: '2026-09-25T09:00:00Z' }
+  ];
+}
+seed();
+
+function ApiException(status, code, message){
+  this.status = status; this.code = code; this.message = message;
+}
+
+var ALLOWED_PLATFORMS = ['Twitter', 'LinkedIn', 'Instagram', 'Threads'];
+
+function validatePost(body, partial){
+  var errors = [];
+  if (!partial || body.title !== undefined){
+    if (!body.title || !body.title.trim()) errors.push({ field: 'title', message: 'must not be blank' });
+    else if (body.title.length > 120) errors.push({ field: 'title', message: 'must be at most 120 characters' });
+  }
+  if (!partial || body.content !== undefined){
+    if (!body.content || !body.content.trim()) errors.push({ field: 'content', message: 'must not be blank' });
+    else if (body.content.length > 2000) errors.push({ field: 'content', message: 'must be at most 2000 characters' });
+  }
+  if (body.platform !== undefined && ALLOWED_PLATFORMS.indexOf(body.platform) === -1){
+    errors.push({ field: 'platform', message: 'must be one of ' + ALLOWED_PLATFORMS.join(', ') });
+  }
+  return errors;
+}
+
+var PostRepository = {
+  findAll: function(){ return state.posts; },
+  findById: function(id){
+    for (var i = 0; i < state.posts.length; i++) if (state.posts[i].id === id) return state.posts[i];
+    return null;
+  },
+  save: function(post){ state.posts.push(post); return post; },
+  deleteById: function(id){
+    for (var i = 0; i < state.posts.length; i++){
+      if (state.posts[i].id === id){ state.posts.splice(i, 1); return true; }
+    }
+    return false;
+  }
+};
+
+var PostService = {
+  create: function(body){
+    var errors = validatePost(body, false);
+    if (errors.length) throw new ApiException(400, 'VALIDATION_ERROR', errors.map(function(e){ return e.field + ' ' + e.message; }).join('; '));
+    return PostRepository.save({ id: uid(8), title: body.title.trim(), content: body.content.trim(), platform: body.platform || 'Twitter', status: 'DRAFT', scheduledAt: null });
+  },
+  update: function(id, body){
+    var post = PostRepository.findById(id);
+    if (!post) throw new ApiException(404, 'POST_NOT_FOUND', 'post ' + id + ' does not exist');
+    var errors = validatePost(body, true);
+    if (errors.length) throw new ApiException(400, 'VALIDATION_ERROR', errors.map(function(e){ return e.field + ' ' + e.message; }).join('; '));
+    if (body.title !== undefined) post.title = body.title.trim();
+    if (body.content !== undefined) post.content = body.content.trim();
+    if (body.platform !== undefined) post.platform = body.platform;
+    return post;
+  },
+  remove: function(id){
+    if (!PostRepository.deleteById(id)) throw new ApiException(404, 'POST_NOT_FOUND', 'post ' + id + ' does not exist');
+  },
+  schedule: function(id, scheduledAt){
+    var post = PostRepository.findById(id);
+    if (!post) throw new ApiException(404, 'POST_NOT_FOUND', 'post ' + id + ' does not exist');
+    if (!scheduledAt) throw new ApiException(400, 'VALIDATION_ERROR', 'scheduledAt must not be blank');
+    post.status = 'SCHEDULED';
+    post.scheduledAt = scheduledAt;
+    return post;
+  },
+  crashDemo: function(){
+    throw new Error('unexpected null reference while resolving publish target');
+  }
+};
+
+function log(level, cid, msg){
+  var line = '[' + nowIso() + '] [' + level + '] [cid=' + cid + '] ' + msg;
+  state.logs.push({ level: level, line: line });
+  if (state.logs.length > 60) state.logs.shift();
+  renderLogs();
+}
+
+function dispatch(method, path, successStatus, fn){
+  var cid = uid(8);
+  var start = performance.now();
+  log('INFO', cid, method + ' ' + path + ' - received');
+  try {
+    var data = fn();
+    var ms = (performance.now() - start).toFixed(1);
+    log('INFO', cid, method + ' ' + path + ' - ' + successStatus + ' (' + ms + 'ms)');
+    return { status: successStatus, cid: cid, body: { success: true, data: data === undefined ? null : data, timestamp: nowIso(), correlationId: cid } };
+  } catch (ex){
+    var status = ex.status || 500;
+    var ms2 = (performance.now() - start).toFixed(1);
+    log('ERROR', cid, method + ' ' + path + ' - ' + status + ' ' + (ex.code || 'INTERNAL_ERROR') + ' (' + ms2 + 'ms)');
+    return { status: status, cid: cid, body: { success: false, error: { code: ex.code || 'INTERNAL_ERROR', message: ex.message }, timestamp: nowIso(), correlationId: cid } };
+  }
+}
+
+var endpoints = [
+  { key: 'list', method: 'GET', path: '/api/posts', body: '', run: function(){ return dispatch('GET', '/api/posts', 200, function(){ return PostRepository.findAll(); }); } },
+  { key: 'create', method: 'POST', path: '/api/posts', body: '{\n  "title": "Q4 roadmap thread",\n  "content": "What shipped, what is next.",\n  "platform": "LinkedIn"\n}', run: function(bodyText){ return dispatch('POST', '/api/posts', 201, function(){ return PostService.create(JSON.parse(bodyText)); }); } },
+  { key: 'update', method: 'PUT', path: '/api/posts/{id}', body: '{\n  "id": "<paste an id from the table>",\n  "title": "Updated title"\n}', run: function(bodyText){ var b = JSON.parse(bodyText); return dispatch('PUT', '/api/posts/' + b.id, 200, function(){ return PostService.update(b.id, b); }); } },
+  { key: 'delete', method: 'DELETE', path: '/api/posts/{id}', body: '{\n  "id": "<paste an id from the table>"\n}', run: function(bodyText){ var b = JSON.parse(bodyText); return dispatch('DELETE', '/api/posts/' + b.id, 204, function(){ PostService.remove(b.id); }); } },
+  { key: 'schedule', method: 'POST', path: '/api/posts/{id}/schedule', body: '{\n  "id": "<paste an id from the table>",\n  "scheduledAt": "2026-10-01T09:00:00Z"\n}', run: function(bodyText){ var b = JSON.parse(bodyText); return dispatch('POST', '/api/posts/' + b.id + '/schedule', 200, function(){ return PostService.schedule(b.id, b.scheduledAt); }); } }
+];
+
+var activeEndpoint = endpoints[0];
+
+function renderEndpoints(){
+  var el = document.getElementById('endpoints');
+  el.innerHTML = '';
+  endpoints.forEach(function(ep){
+    var btn = document.createElement('button');
+    btn.className = 'ep' + (ep.key === activeEndpoint.key ? ' active' : '');
+    btn.innerHTML = '<span class="m m-' + ep.method.toLowerCase() + '">' + ep.method + '</span>' + ep.path;
+    btn.onclick = function(){ activeEndpoint = ep; renderEndpoints(); renderRequestPanel(); };
+    el.appendChild(btn);
+  });
+}
+
+function renderRequestPanel(){
+  document.getElementById('reqMethod').textContent = activeEndpoint.method;
+  document.getElementById('reqMethod').style.background = ({ GET: '#16324a', POST: '#1a3a2e', PUT: '#3a2e14', DELETE: '#3a1e18' })[activeEndpoint.method];
+  document.getElementById('reqMethod').style.color = '#fff';
+  document.getElementById('reqPath').textContent = activeEndpoint.path;
+  document.getElementById('bodyEditor').value = activeEndpoint.body;
+  document.getElementById('bodyEditor').style.display = activeEndpoint.body ? 'block' : 'none';
+}
+
+function statusClass(status){
+  if (status >= 500) return 'code-5xx';
+  if (status >= 400) return 'code-4xx';
+  return 'code-2xx';
+}
+
+function renderLogs(){
+  var el = document.getElementById('logLines');
+  el.innerHTML = state.logs.map(function(l){ return '<div class="l-' + l.level.toLowerCase() + '">' + l.line + '</div>'; }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderTable(){
+  var rows = state.posts.map(function(p){
+    return '<tr><td class="title">' + p.title + '</td><td>' + p.platform + '</td>' +
+      '<td><span class="status-pill' + (p.status === 'SCHEDULED' ? ' scheduled' : '') + '">' + p.status + '</span></td>' +
+      '<td>' + p.id + '</td></tr>';
+  }).join('');
+  document.getElementById('dataTable').innerHTML = '<tr><th>Title</th><th>Platform</th><th>Status</th><th>id</th></tr>' + rows;
+}
+
+function runRequest(){
+  var result;
+  try {
+    result = activeEndpoint.run(document.getElementById('bodyEditor').value);
+  } catch (e){
+    var cid = uid(8);
+    log('ERROR', cid, activeEndpoint.method + ' ' + activeEndpoint.path + ' - 400 BAD_REQUEST (malformed JSON)');
+    result = { status: 400, body: { success: false, error: { code: 'BAD_REQUEST', message: 'request body is not valid JSON' }, timestamp: nowIso(), correlationId: cid } };
+  }
+  document.getElementById('respStatus').innerHTML = '<span class="' + statusClass(result.status) + '">' + result.status + '</span>';
+  document.getElementById('respBody').textContent = JSON.stringify(result.body, null, 2);
+  renderTable();
+}
+
+function runCrash(){
+  var result = dispatch('GET', '/api/posts/crash-demo', 500, function(){ return PostService.crashDemo(); });
+  document.getElementById('respStatus').innerHTML = '<span class="' + statusClass(result.status) + '">' + result.status + '</span>';
+  document.getElementById('respBody').textContent = JSON.stringify(result.body, null, 2);
+}
+
+document.getElementById('runBtn').addEventListener('click', runRequest);
+document.getElementById('crashBtn').addEventListener('click', runCrash);
+
+document.querySelectorAll('.part-toggle button').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.querySelectorAll('.part-toggle button').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelectorAll('.part-panel').forEach(function(p){ p.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('part-' + btn.dataset.part).classList.add('active');
+  });
+});
+
+document.querySelectorAll('.code-tabs button').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.querySelectorAll('.code-tabs button').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelectorAll('.code-block').forEach(function(p){ p.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('code-' + btn.dataset.code).classList.add('active');
+  });
+});
+
+renderEndpoints();
+renderRequestPanel();
+renderTable();
+log('INFO', uid(8), 'application started - Dispatch backend ready on :8080');
+</script>
+</body>
+</html>
